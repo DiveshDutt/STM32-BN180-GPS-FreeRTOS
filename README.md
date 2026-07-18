@@ -1,4 +1,6 @@
-<img width="975" height="614" alt="image" src="https://github.com/user-attachments/assets/22bc37c5-966b-4345-84c8-3b6150e40d8d" />
+<img width="658" height="421" alt="image" src="https://github.com/user-attachments/assets/56766b86-f4bf-4bec-8b7a-14273455ef9c" />
+
+
 
 # STM32-BN180-GPS-FreeRTOS
 STM32 firmware utilizing FreeRTOS to read, parse, and process live GPS data streams from a BN-180 GPS module.
