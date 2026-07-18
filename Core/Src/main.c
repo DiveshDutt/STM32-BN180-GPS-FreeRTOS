@@ -148,27 +148,27 @@ int main(void)
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
-  /* creation of defaultTask */
+  /* creation of defaultTask created by cubeMX*/
   defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
   xTaskCreate(
-        StartGpsTask,     // 1. Pointer to the loop function we will write next
-        "GpsTask",        // 2. Clear text label name for debugging diagnostics
-        256,              // 3. Stack Depth depth space (Allocated in 32-bit WORDS)
+        StartGpsTask,     // 1. Name of the function loop code block
+        "GpsTask",        // 2. text label name for debugging diagnostics
+        256,              // 3. Need Large stack since it do complex task 256 words = 1024 bytes
         NULL,             // 4. Parameter object hook pointer passed down to task
-        24,                // 5. System Execution Priority Rank (Higher = More Urgent)
-        &GpsTaskHandle    // 6. Pass our variable handle address reference
+        24,                //5. Execution Priority Rank (Higher = More Urgent) since default task has priority 24
+        &GpsTaskHandle    // 6. task handler
     );
 
   xTaskCreate(
-       StartHeartbeatTask,     // Name of the function loop code block
-       "HeartTask",            // Diagnostic text tag used for trace tools
-       128,                    // Stack depth size (128 words = 512 bytes is plenty for basic GPIOs)
-       NULL,                   // Parameter pointer argument hook
-       24,                      // Set to a LOWER priority rank than the GPS driver
-       &HeartbeatTaskHandle    // Pass the memory location address of the handle variable
+       StartHeartbeatTask,     // 1.Name of the function loop code block
+       "HeartTask",            // 2.Diagnostic text tag used for trace tools
+       128,                    // 3.Stack depth size (128 words = 512 bytes is enough for basic GPIOs)
+       NULL,                   // 4.Parameter pointer argument hook
+       24,                     // 5.Execution Priority Rank (Higher = More Urgent) since default task has priority 24
+       &HeartbeatTaskHandle    // 6.task handler
    );
   /* USER CODE END RTOS_THREADS */
 
@@ -348,22 +348,22 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
     if (huart->Instance == UART5) // Change to your exact GPS UART instance
     {
-        if (rx_byte == '\n' || rx_byte == '\r')
+        if (rx_byte == '\n' || rx_byte == '\r')   // check for the end of sequence
         {
             if (rx_index > 0)
             {
                 rx_buffer[rx_index] = '\0';
-                strcpy(parse_buffer, rx_buffer); // Copy safely to parsing buffer
+                strcpy(parse_buffer, rx_buffer); // Copy from rx_buffer to parsing buffer (parse_buffer) which can be parsed later
 
-                line_ready = 1;
+                line_ready = 1;   //full line or a sequence of data is ready to parse
             }
-            rx_index = 0;
+            rx_index = 0;   // rx_index = 0 so that next sequence of data can be received
         }
-        else if (rx_index < sizeof(rx_buffer) - 1)
+        else if (rx_index < sizeof(rx_buffer) - 1)  //rx_buffer should not be more that 128 bytes
         {
             rx_buffer[rx_index++] = rx_byte;
         }
-        HAL_UART_Receive_IT(&huart5, &rx_byte, 1);
+        HAL_UART_Receive_IT(&huart5, &rx_byte, 1);  //receieve the data again in interrupt mode
     }
 }
 
@@ -388,12 +388,12 @@ void StartGpsTask(void *argument)
 {
     char display_msg[128];
 
-    /* Threads must run inside an infinite loop and NEVER exit or return! &GpsTaskHandle &HeartbeatTaskHandle*/
+    /* Threads must run inside an infinite loop */
     for(;;)
     {
 
     	parse_gps_line(parse_buffer);
-        // Print a diagnostic message to prove the manual scheduler is alive
+        // Print a diagnostic message to prove the scheduler is alive
         sprintf(display_msg, "GPS is active...\r\n");
         HAL_UART_Transmit(&huart2, (uint8_t*)display_msg, strlen(display_msg), 100);
 
@@ -419,6 +419,14 @@ void StartGpsTask(void *argument)
     }
 }
 
+/**
+ * @brief  Extracts, validates, and parses raw NMEA GGA sentences from the GPS module.
+ * @note   Handles both $GNGGA and $GPGGA sentences dynamically. Converts raw coordinates
+ *         from NMEA Degree-Minutes (DDMM.MMMMM) format to standard Decimal Degrees (DD.DDDDDD).
+ *
+ * @param  line: Pointer to the null-terminated string containing a single raw NMEA sentence.
+ * @retval None
+ */
 void parse_gps_line(char *line)
 {
     if (strncmp(line, "$GNGGA", 6) == 0 || strncmp(line, "$GPGGA", 6) == 0)
@@ -442,17 +450,17 @@ void parse_gps_line(char *line)
             float raw_lat = atof(lat_ptr);
             float raw_lon = atof(lon_ptr);
 
-            // Convert NMEA Degree-Minutes format to standard Decimal Degrees
+            //  LATITUDE CONVERSION (NMEA DDMM.MMMMM -> Decimal DD.DDDDDD)
             int lat_degrees = (int)(raw_lat / 100);
             float lat_minutes = raw_lat - (lat_degrees * 100);
             latitude = lat_degrees + (lat_minutes / 60.0);
-
+            //LONGITUDE CONVERSION (NMEA DDDMM.MMMMM -> Decimal DD.DDDDDD)
             int lon_degrees = (int)(raw_lon / 100);
             float lon_minutes = raw_lon - (lon_degrees * 100);
             longitude = lon_degrees + (lon_minutes / 60.0);
-
-            if (*extract_gps_column(line, 3) == 'S') latitude = -latitude;
-            if (*extract_gps_column(line, 5) == 'W') longitude = -longitude;
+           // HEMISPHERE DIRECTIONAL CORRECTION
+            if (*extract_gps_column(line, 3) == 'S') latitude = -latitude;   //negative since cordinates are -ve on southern and western hemispheres
+            if (*extract_gps_column(line, 5) == 'W') longitude = -longitude; //negative since cordinates are -ve on southern and western hemispheres
 
             gps_fix = 1; // Force status to valid display mode since text is present!
         }
@@ -464,15 +472,30 @@ void parse_gps_line(char *line)
     }
 }
 
+/**
+ * @brief  Extracts a specific comma-separated data field from a raw NMEA sentence.
+ * @note   This function counts commas to locate the target column.
+ *         Trailing control characters (\r, \n) or asterisk delimiters (*) will
+ *         automatically terminate the parsing field.
+ *
+ * @param  line:   Pointer to the null-terminated raw NMEA string (e.g., $GNGGA,...).
+ * @param  target_column: The index of the column to extract (0-indexed or 1-indexed,
+ *  (from Datasheet of GPS Module) depending on implementation. Here, 2=Lat, 4=Lon, 6=quality).
+ *
+ * @retval char*:  Pointer to a static null-terminated string containing the column data.
+ *                 Returns NULL if the target column index is not found in the line.
+ */
+
 char* extract_gps_column(char *str, int field_index)
 {
+	// Local static buffer to store and return the text field
     static char field_buffer[32];
     int comma_count = 0;
     int buf_idx = 0;
-
+    // Reset buffer to prevent garbage data to corrupt
     memset(field_buffer, 0, sizeof(field_buffer));
 
-    // Fast-forward through commas to reach the target field index
+    // Traverse the string until we find the start of the target column
     while (*str && comma_count < field_index)
     {
         if (*str == ',')
@@ -480,9 +503,14 @@ char* extract_gps_column(char *str, int field_index)
             comma_count++;
         }
         str++;
+        // Return NULL if the string ended before reaching the desired column
+        if (*str == '\0')
+         {
+             return NULL;
+         }
     }
 
-    // Copy characters until the next field separator or string boundary
+    //Copy characters from the column until hitting a delimiter or boundary
     while (*str && *str != ',' && *str != '*' && *str != '\r' && *str != '\n')
     {
         if (buf_idx < 31)
@@ -491,7 +519,7 @@ char* extract_gps_column(char *str, int field_index)
         }
         str++;
     }
-
+    //Explicitly null-terminate the extracted string
     field_buffer[buf_idx] = '\0';
     return field_buffer;
 }
