@@ -158,7 +158,7 @@ int main(void)
         "GpsTask",        // 2. text label name for debugging diagnostics
         256,              // 3. Need Large stack since it do complex task 256 words = 1024 bytes
         NULL,             // 4. Parameter object hook pointer passed down to task
-        24,                //5. Execution Priority Rank (Higher = More Urgent) since default task has priority 24
+        25,                //5. Execution Priority Rank (Higher = More Urgent) since default task has priority 24
         &GpsTaskHandle    // 6. task handler
     );
 
