@@ -1122,7 +1122,7 @@ int main(void)
   xTaskCreate(
  8000d42:	4b11      	ldr	r3, [pc, #68]	@ (8000d88 <main+0x84>)
  8000d44:	9301      	str	r3, [sp, #4]
- 8000d46:	2318      	movs	r3, #24
+ 8000d46:	2319      	movs	r3, #25
  8000d48:	9300      	str	r3, [sp, #0]
  8000d4a:	2300      	movs	r3, #0
  8000d4c:	f44f 7280 	mov.w	r2, #256	@ 0x100
@@ -1130,7 +1130,7 @@ int main(void)
  8000d52:	480f      	ldr	r0, [pc, #60]	@ (8000d90 <main+0x8c>)
  8000d54:	f005 faf3 	bl	800633e <xTaskCreate>
         NULL,             // 4. Parameter object hook pointer passed down to task
-        24,                //5. Execution Priority Rank (Higher = More Urgent) since default task has priority 24
+        25,                //5. Execution Priority Rank (Higher = More Urgent) since default task has priority 24
         &GpsTaskHandle    // 6. task handler
     );
 
