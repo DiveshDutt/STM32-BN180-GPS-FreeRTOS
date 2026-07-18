@@ -1,4 +1,5 @@
-<img width="667" height="416" alt="image" src="https://github.com/user-attachments/assets/b740b89d-e20e-4116-80c7-3538e0fca0e2" />
+<img width="658" height="421" alt="image" src="https://github.com/user-attachments/assets/56766b86-f4bf-4bec-8b7a-14273455ef9c" />
+
 
 
 # STM32-BN180-GPS-FreeRTOS
