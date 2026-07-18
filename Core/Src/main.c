@@ -158,7 +158,7 @@ int main(void)
         "GpsTask",        // 2. text label name for debugging diagnostics
         256,              // 3. Need Large stack since it do complex task 256 words = 1024 bytes
         NULL,             // 4. Parameter object hook pointer passed down to task
-        25,                //5. Execution Priority Rank (Higher = More Urgent) since default task has priority 24
+        24,                //5. Execution Priority Rank (Higher = More Urgent) since default task has priority 24
         &GpsTaskHandle    // 6. task handler
     );
 
@@ -443,26 +443,46 @@ void parse_gps_line(char *line)
 
         // Only parse coordinate positions if the GPS module sees data fields
         char *lat_ptr = extract_gps_column(line, 2);
-        char *lon_ptr = extract_gps_column(line, 4);
 
-        if (lat_ptr && lon_ptr && strlen(lat_ptr) > 0 && strlen(lon_ptr) > 0)
+        if (lat_ptr && strlen(lat_ptr) > 0)
         {
+            // Convert ASCII to float while the buffer safely holds latitude
             float raw_lat = atof(lat_ptr);
-            float raw_lon = atof(lon_ptr);
 
-            //  LATITUDE CONVERSION (NMEA DDMM.MMMMM -> Decimal DD.DDDDDD)
+            // LATITUDE CONVERSION (NMEA DDMM.MMMMM -> Decimal DD.DDDDDD)
             int lat_degrees = (int)(raw_lat / 100);
             float lat_minutes = raw_lat - (lat_degrees * 100);
             latitude = lat_degrees + (lat_minutes / 60.0);
-            //LONGITUDE CONVERSION (NMEA DDDMM.MMMMM -> Decimal DD.DDDDDD)
+
+            // Apply Southern Hemisphere correction
+            if (*extract_gps_column(line, 3) == 'S')
+            {
+                latitude = -latitude;
+            }
+        }
+
+        // 2. EXTRACT AND PROCESS LONGITUDE SECOND
+        char *lon_ptr = extract_gps_column(line, 4);
+
+        if (lon_ptr && strlen(lon_ptr) > 0)
+        {
+            // Convert ASCII to float now that the buffer holds longitude
+            float raw_lon = atof(lon_ptr);
+
+            // LONGITUDE CONVERSION (NMEA DDDMM.MMMMM -> Decimal DD.DDDDDD)
             int lon_degrees = (int)(raw_lon / 100);
             float lon_minutes = raw_lon - (lon_degrees * 100);
             longitude = lon_degrees + (lon_minutes / 60.0);
-           // HEMISPHERE DIRECTIONAL CORRECTION
-            if (*extract_gps_column(line, 3) == 'S') latitude = -latitude;   //negative since cordinates are -ve on southern and western hemispheres
-            if (*extract_gps_column(line, 5) == 'W') longitude = -longitude; //negative since cordinates are -ve on southern and western hemispheres
 
-            gps_fix = 1; // Force status to valid display mode since text is present!
+            // Apply Western Hemisphere correction
+            if (*extract_gps_column(line, 5) == 'W')
+            {
+                longitude = -longitude;
+            }
+        }
+
+        // Set status to valid display mode since parsing completed successfully
+        gps_fix = 1;
         }
         else
         {
@@ -470,7 +490,7 @@ void parse_gps_line(char *line)
             gps_fix = 0;
         }
     }
-}
+
 
 /**
  * @brief  Extracts a specific comma-separated data field from a raw NMEA sentence.
