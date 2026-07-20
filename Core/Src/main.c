@@ -158,7 +158,7 @@ int main(void)
         "GpsTask",        // 2. text label name for debugging diagnostics
         256,              // 3. Need Large stack since it do complex task 256 words = 1024 bytes
         NULL,             // 4. Parameter object hook pointer passed down to task
-        24,                //5. Execution Priority Rank (Higher = More Urgent) since default task has priority 24
+        25,                //5. Execution Priority Rank (Higher = More Urgent) since default task has priority 24
         &GpsTaskHandle    // 6. task handler
     );
 
@@ -353,9 +353,14 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
             if (rx_index > 0)
             {
                 rx_buffer[rx_index] = '\0';
-                strcpy(parse_buffer, rx_buffer); // Copy from rx_buffer to parsing buffer (parse_buffer) which can be parsed later
+                strncpy(parse_buffer, rx_buffer,sizeof(parse_buffer)-1); // Copy from rx_buffer to parsing buffer (parse_buffer) which can be parsed later
+                parse_buffer[sizeof(parse_buffer)-1] = '\0';
 
-                line_ready = 1;   //full line or a sequence of data is ready to parse
+                //signal the GPS task that a line is ready
+               BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+                vTaskNotifyGiveFromISR(GpsTaskHandle, &xHigherPriorityTaskWoken);
+               // portYIELD_FROM_ISR(pdTRUE);  //it will do the context switch immediately to StartGpsTask
+                portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
             }
             rx_index = 0;   // rx_index = 0 so that next sequence of data can be received
         }
@@ -391,6 +396,9 @@ void StartGpsTask(void *argument)
     /* Threads must run inside an infinite loop */
     for(;;)
     {
+    	 // It wakes up the exact microsecond the ISR finishes copying a new line.
+    	ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+
 
     	parse_gps_line(parse_buffer);
         // Print a diagnostic message to prove the scheduler is alive
